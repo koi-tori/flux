@@ -51,11 +51,22 @@ void print_expression(const flux::Expression& expression, std::size_t depth) {
             }
             break;
         case flux::ExpressionKind::Call:
-            std::cout << "Call(" << expression.value << ")\n";
+            std::cout << "Call\n";
+            if (expression.left) {
+                print_indent(depth + 1);
+                std::cout << "Callee:\n";
+                print_expression(*expression.left, depth + 2);
+            }
             for (std::size_t i = 0; i < expression.arguments.size(); ++i) {
                 print_indent(depth + 1);
                 std::cout << "Argument " << i + 1 << ":\n";
                 print_expression(*expression.arguments[i], depth + 2);
+            }
+            break;
+        case flux::ExpressionKind::MemberAccess:
+            std::cout << "MemberAccess(" << expression.value << ")\n";
+            if (expression.left) {
+                print_expression(*expression.left, depth + 1);
             }
             break;
     }
@@ -66,6 +77,22 @@ void print_statement(const flux::Statement& statement, std::size_t depth) {
     switch (statement.kind) {
         case flux::StatementKind::Function:
             std::cout << "Function(" << statement.name << ")\n";
+            for (const auto& parameter : statement.parameters) {
+                print_indent(depth + 1);
+                std::cout << "Parameter(";
+                if (!parameter.type.empty()) {
+                    std::cout << parameter.type << " ";
+                }
+                std::cout << parameter.name << ")\n";
+            }
+            print_indent(depth + 1);
+            std::cout << "Body:\n";
+            for (const auto& child : statement.body) {
+                print_statement(child, depth + 2);
+            }
+            break;
+        case flux::StatementKind::PassiveFunction:
+            std::cout << "PassiveFunction(" << statement.name << ")\n";
             for (const auto& parameter : statement.parameters) {
                 print_indent(depth + 1);
                 std::cout << "Parameter(";

@@ -31,6 +31,7 @@ private:
         Identifier,
         Number,
         String,
+        Dot,
         Plus,
         Minus,
         Star,
@@ -207,6 +208,7 @@ private:
 
             advance();
             switch (character) {
+                case '.': add_token(TokenKind::Dot, ".", token_line, token_column); break;
                 case '+': add_token(TokenKind::Plus, "+", token_line, token_column); break;
                 case '-': add_token(TokenKind::Minus, "-", token_line, token_column); break;
                 case '*': add_token(TokenKind::Star, "*", token_line, token_column); break;
@@ -264,8 +266,15 @@ private:
             error(keyword, "expected a function definition");
         }
 
+        const bool is_passive = check(TokenKind::Identifier) &&
+                                peek_token().text == "passive";
+        if (is_passive) {
+            ++current_;
+        }
+
         Statement function{};
-        function.kind = StatementKind::Function;
+        function.kind = is_passive ? StatementKind::PassiveFunction
+                                   : StatementKind::Function;
         function.name = consume(TokenKind::Identifier, "expected function name").text;
         consume(TokenKind::LeftParen, "expected '(' after function name");
         if (!check(TokenKind::RightParen)) {
@@ -295,6 +304,9 @@ private:
 
     Statement parse_statement() {
         if (check(TokenKind::Identifier)) {
+            if (peek_token().text == "def") {
+                return parse_function();
+            }
             if (peek_token().text == "let") {
                 ++current_;
                 Statement statement{};
@@ -380,13 +392,24 @@ private:
 
     std::unique_ptr<Expression> parse_postfix() {
         auto expression = parse_primary();
-        while (match(TokenKind::LeftParen)) {
-            if (expression->kind != ExpressionKind::Identifier) {
-                error(tokens_[current_ - 1], "only named functions can be called");
+        while (true) {
+            if (match(TokenKind::Dot)) {
+                auto member = std::make_unique<Expression>();
+                member->kind = ExpressionKind::MemberAccess;
+                member->left = std::move(expression);
+                member->value =
+                    consume(TokenKind::Identifier, "expected member name after '.'").text;
+                expression = std::move(member);
+                continue;
             }
+
+            if (!match(TokenKind::LeftParen)) {
+                break;
+            }
+
             auto call = std::make_unique<Expression>();
             call->kind = ExpressionKind::Call;
-            call->value = expression->value;
+            call->left = std::move(expression);
             if (!check(TokenKind::RightParen)) {
                 do {
                     call->arguments.push_back(parse_expression());

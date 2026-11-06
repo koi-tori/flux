@@ -1,8 +1,8 @@
-def add(int x, int y):
-    return x + y
+def passive struct_like_func():
+    let x = 0
+    def m_print():
+        print(x)
 
 def __main__():
-    let x = 3
-    let y = 4
-    let str = "" + x + " + " + y + " = " + add(x + y)
-    print(str)
+    let instance = struct_like_func()
+    instance.m_print()

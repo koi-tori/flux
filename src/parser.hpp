@@ -11,7 +11,8 @@ enum class ExpressionKind {
     String,
     Identifier,
     Binary,
-    Call
+    Call,
+    MemberAccess
 };
 
 struct Expression {
@@ -29,6 +30,7 @@ struct Parameter {
 
 enum class StatementKind {
     Function,
+    PassiveFunction,
     Let,
     Return,
     Print,
