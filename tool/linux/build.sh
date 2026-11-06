@@ -5,11 +5,20 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 root_dir="$(cd -- "$script_dir/../.." && pwd)"
 output_dir="$root_dir/bin/debug"
 binary="$output_dir/flux-parser"
+build_dir="$root_dir/build/debug"
 
-mkdir -p "$output_dir"
-"${CXX:-g++}" -std=c++17 -Wall -Wextra -Wpedantic -O0 -g \
-    "$root_dir/src/parser.cpp" \
-    "$root_dir/src/visualize.cpp" \
-    -o "$binary"
+if ! command -v cmake >/dev/null 2>&1; then
+    printf 'CMake is required to build Flux.\n' >&2
+    exit 1
+fi
+if ! command -v ninja >/dev/null 2>&1; then
+    printf 'Ninja is required to build Flux.\n' >&2
+    exit 1
+fi
+
+cmake -S "$root_dir" -B "$build_dir" -G Ninja \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_CXX_COMPILER="${CXX:-g++}"
+cmake --build "$build_dir"
 
 printf 'Build succeeded: %s\n' "$binary"
