@@ -11,6 +11,20 @@
 namespace {
 
 void print_expression(const flux::Expression& expression, std::size_t depth);
+void print_indent(std::size_t depth);
+
+void print_parameter(const flux::Parameter& parameter, std::size_t depth) {
+    print_indent(depth);
+    std::cout << "Parameter(" << parameter.name << ")\n";
+    print_indent(depth + 1);
+    std::cout << "Type\n";
+    print_indent(depth + 2);
+    if (parameter.type.kind == flux::TypeKind::Basic) {
+        std::cout << "BasicType(" << parameter.type.name << ")\n";
+    } else {
+        std::cout << "UnspecifiedType\n";
+    }
+}
 
 void print_indent(std::size_t depth) {
     for (std::size_t i = 0; i < depth; ++i) {
@@ -78,12 +92,7 @@ void print_statement(const flux::Statement& statement, std::size_t depth) {
         case flux::StatementKind::Function:
             std::cout << "Function(" << statement.name << ")\n";
             for (const auto& parameter : statement.parameters) {
-                print_indent(depth + 1);
-                std::cout << "Parameter(";
-                if (!parameter.type.empty()) {
-                    std::cout << parameter.type << " ";
-                }
-                std::cout << parameter.name << ")\n";
+                print_parameter(parameter, depth + 1);
             }
             print_indent(depth + 1);
             std::cout << "Body:\n";
@@ -94,12 +103,7 @@ void print_statement(const flux::Statement& statement, std::size_t depth) {
         case flux::StatementKind::PassiveFunction:
             std::cout << "PassiveFunction(" << statement.name << ")\n";
             for (const auto& parameter : statement.parameters) {
-                print_indent(depth + 1);
-                std::cout << "Parameter(";
-                if (!parameter.type.empty()) {
-                    std::cout << parameter.type << " ";
-                }
-                std::cout << parameter.name << ")\n";
+                print_parameter(parameter, depth + 1);
             }
             print_indent(depth + 1);
             std::cout << "Body:\n";

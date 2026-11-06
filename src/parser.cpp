@@ -281,10 +281,13 @@ private:
             do {
                 const auto first = consume(TokenKind::Identifier, "expected parameter");
                 if (check(TokenKind::Identifier)) {
+                    const auto name =
+                        consume(TokenKind::Identifier, "expected parameter name").text;
                     function.parameters.push_back(
-                        {first.text, consume(TokenKind::Identifier, "expected parameter name").text});
+                        {name, {TypeKind::Basic, first.text}});
                 } else {
-                    function.parameters.push_back({"", first.text});
+                    function.parameters.push_back(
+                        {first.text, {TypeKind::Unspecified, ""}});
                 }
             } while (match(TokenKind::Comma));
         }

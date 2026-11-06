@@ -23,9 +23,19 @@ struct Expression {
     std::vector<std::unique_ptr<Expression>> arguments;
 };
 
-struct Parameter {
-    std::string type;
+enum class TypeKind {
+    Basic,
+    Unspecified
+};
+
+struct Type {
+    TypeKind kind;
     std::string name;
+};
+
+struct Parameter {
+    std::string name;
+    Type type;
 };
 
 enum class StatementKind {
