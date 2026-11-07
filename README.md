@@ -3,3 +3,5 @@
 flux is a language. python-style(maybe). natural-lang-like. memory-safe.
 
 good-for-my-health. good-for-your-life.
+
+See <log/note.ipynb> for more information.

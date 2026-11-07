@@ -111,8 +111,38 @@ void print_statement(const flux::Statement& statement, std::size_t depth) {
                 print_statement(child, depth + 2);
             }
             break;
+        case flux::StatementKind::ActiveFunction:
+            std::cout << "ActiveFunction(" << statement.name << ")\n";
+            for (const auto& parameter : statement.parameters) {
+                print_parameter(parameter, depth + 1);
+            }
+            print_indent(depth + 1);
+            std::cout << "Body:\n";
+            for (const auto& child : statement.body) {
+                print_statement(child, depth + 2);
+            }
+            break;
         case flux::StatementKind::Let:
             std::cout << "Let(" << statement.name << ")\n";
+            if (statement.expression) {
+                print_expression(*statement.expression, depth + 1);
+            }
+            break;
+        case flux::StatementKind::Assignment:
+            std::cout << "Assignment\n";
+            if (statement.target) {
+                print_indent(depth + 1);
+                std::cout << "Target:\n";
+                print_expression(*statement.target, depth + 2);
+            }
+            if (statement.expression) {
+                print_indent(depth + 1);
+                std::cout << "Value:\n";
+                print_expression(*statement.expression, depth + 2);
+            }
+            break;
+        case flux::StatementKind::Delete:
+            std::cout << "Delete\n";
             if (statement.expression) {
                 print_expression(*statement.expression, depth + 1);
             }
@@ -121,6 +151,31 @@ void print_statement(const flux::Statement& statement, std::size_t depth) {
             std::cout << "Return\n";
             if (statement.expression) {
                 print_expression(*statement.expression, depth + 1);
+            }
+            break;
+        case flux::StatementKind::Accept:
+        case flux::StatementKind::YieldPause:
+        case flux::StatementKind::YieldExtract:
+        case flux::StatementKind::Defer:
+            std::cout << (statement.kind == flux::StatementKind::Accept
+                              ? "Accept"
+                              : statement.kind == flux::StatementKind::YieldPause
+                                    ? "YieldPause"
+                                    : statement.kind == flux::StatementKind::YieldExtract
+                                          ? "YieldExtract"
+                                          : "Defer")
+                      << '\n';
+            if (statement.expression) {
+                print_indent(depth + 1);
+                std::cout << "Context:\n";
+                print_expression(*statement.expression, depth + 2);
+            }
+            if (!statement.body.empty()) {
+                print_indent(depth + 1);
+                std::cout << "Body:\n";
+                for (const auto& child : statement.body) {
+                    print_statement(child, depth + 2);
+                }
             }
             break;
         case flux::StatementKind::Print:

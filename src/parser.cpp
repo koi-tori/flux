@@ -266,15 +266,17 @@ private:
             error(keyword, "expected a function definition");
         }
 
-        const bool is_passive = check(TokenKind::Identifier) &&
-                                peek_token().text == "passive";
-        if (is_passive) {
+        StatementKind function_kind = StatementKind::Function;
+        if (check(TokenKind::Identifier) &&
+            (peek_token().text == "passive" || peek_token().text == "active")) {
+            function_kind = peek_token().text == "passive"
+                                ? StatementKind::PassiveFunction
+                                : StatementKind::ActiveFunction;
             ++current_;
         }
 
         Statement function{};
-        function.kind = is_passive ? StatementKind::PassiveFunction
-                                   : StatementKind::Function;
+        function.kind = function_kind;
         function.name = consume(TokenKind::Identifier, "expected function name").text;
         consume(TokenKind::LeftParen, "expected '(' after function name");
         if (!check(TokenKind::RightParen)) {
@@ -328,6 +330,26 @@ private:
                 consume(TokenKind::Newline, "expected a newline after statement");
                 return statement;
             }
+            if (peek_token().text == "del") {
+                ++current_;
+                Statement statement{};
+                statement.kind = StatementKind::Delete;
+                statement.expression = parse_expression();
+                consume(TokenKind::Newline, "expected a newline after statement");
+                return statement;
+            }
+            if (peek_token().text == "yield" || peek_token().text == "defer") {
+                const bool is_yield = peek_token().text == "yield";
+                ++current_;
+                Statement statement{};
+                statement.kind = is_yield ? StatementKind::YieldPause
+                                          : StatementKind::Defer;
+                if (!check(TokenKind::Newline)) {
+                    statement.expression = parse_expression();
+                }
+                consume(TokenKind::Newline, "expected a newline after statement");
+                return statement;
+            }
             if (peek_token().text == "print") {
                 ++current_;
                 Statement statement{};
@@ -344,8 +366,41 @@ private:
         }
 
         Statement statement{};
-        statement.kind = StatementKind::Expression;
-        statement.expression = parse_expression();
+        statement.target = parse_expression();
+        if (match(TokenKind::Equal)) {
+            statement.kind = StatementKind::Assignment;
+            statement.expression = parse_expression();
+        } else if (match(TokenKind::Colon)) {
+            if (!statement.target ||
+                statement.target->kind != ExpressionKind::MemberAccess) {
+                error(peek_token(), "expected accept, yield, or defer context operation");
+            }
+            const auto operation = statement.target->value;
+            if (operation == "accept") {
+                statement.kind = StatementKind::Accept;
+            } else if (operation == "yield") {
+                statement.kind = StatementKind::YieldExtract;
+            } else if (operation == "defer") {
+                statement.kind = StatementKind::Defer;
+            } else {
+                error(peek_token(), "expected accept, yield, or defer context operation");
+            }
+            statement.expression = std::move(statement.target->left);
+            statement.target.reset();
+            consume(TokenKind::Newline, "expected a newline after ':'");
+            consume(TokenKind::Indent, "expected an indented context body");
+            skip_newlines();
+            while (!check(TokenKind::Dedent) && !check(TokenKind::End)) {
+                statement.body.push_back(parse_statement());
+                skip_newlines();
+            }
+            consume(TokenKind::Dedent, "expected the end of the context body");
+            return statement;
+        } else {
+            statement.kind = StatementKind::Expression;
+            statement.expression = std::move(statement.target);
+            statement.target.reset();
+        }
         consume(TokenKind::Newline, "expected a newline after statement");
         return statement;
     }

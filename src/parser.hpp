@@ -41,9 +41,16 @@ struct Parameter {
 enum class StatementKind {
     Function,
     PassiveFunction,
+    ActiveFunction,
     Let,
+    Assignment,
+    Delete,
     Return,
     Print,
+    Accept,
+    YieldPause,
+    YieldExtract,
+    Defer,
     Expression
 };
 
@@ -52,6 +59,7 @@ struct Statement {
     std::string name;
     std::vector<Parameter> parameters;
     std::vector<Statement> body;
+    std::unique_ptr<Expression> target;
     std::unique_ptr<Expression> expression;
 };
 

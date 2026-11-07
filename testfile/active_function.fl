@@ -1,0 +1,13 @@
+def active data_manager():
+    let x = malloc_int(0)
+    print("Work begins.")
+    yield
+    print("Work ends.")
+    del x
+
+def __main__():
+    let dm = data_manager()
+    data_manager.accept:
+        x = 10
+    data_manager.yield:
+        print(x)
