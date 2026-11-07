@@ -1,8 +1,8 @@
-def passive struct_like_func():
+def passive foo():
     let x = 0
     def me_add_y(int y):
         return x + y
 
 def __main__():
-    let instance = struct_like_func()
-    print(instance.me_add_y(5))
+    let x = foo()
+    print(x.me_add_y(5))

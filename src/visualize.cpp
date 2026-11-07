@@ -38,8 +38,19 @@ void print_expression(const flux::Expression& expression, std::size_t depth) {
         case flux::ExpressionKind::Number:
             std::cout << "Number(" << expression.value << ")\n";
             break;
+        case flux::ExpressionKind::Character:
+            std::cout << "Character(" << std::quoted(expression.value) << ")\n";
+            break;
         case flux::ExpressionKind::String:
             std::cout << "String(" << std::quoted(expression.value) << ")\n";
+            break;
+        case flux::ExpressionKind::FormattedString:
+            std::cout << "FormattedString(" << std::quoted(expression.value) << ")\n";
+            for (std::size_t i = 0; i < expression.arguments.size(); ++i) {
+                print_indent(depth + 1);
+                std::cout << "Interpolation " << i + 1 << ":\n";
+                print_expression(*expression.arguments[i], depth + 2);
+            }
             break;
         case flux::ExpressionKind::Identifier:
             std::cout << "Identifier(" << expression.value << ")\n";
@@ -81,6 +92,25 @@ void print_expression(const flux::Expression& expression, std::size_t depth) {
             std::cout << "MemberAccess(" << expression.value << ")\n";
             if (expression.left) {
                 print_expression(*expression.left, depth + 1);
+            }
+            break;
+        case flux::ExpressionKind::List:
+            std::cout << "List\n";
+            for (const auto& element : expression.arguments) {
+                print_expression(*element, depth + 1);
+            }
+            break;
+        case flux::ExpressionKind::ListComprehension:
+            std::cout << "ListComprehension(" << expression.value << ")\n";
+            if (expression.left) {
+                print_indent(depth + 1);
+                std::cout << "Element:\n";
+                print_expression(*expression.left, depth + 2);
+            }
+            if (expression.right) {
+                print_indent(depth + 1);
+                std::cout << "Iterable:\n";
+                print_expression(*expression.right, depth + 2);
             }
             break;
     }
@@ -128,6 +158,12 @@ void print_statement(const flux::Statement& statement, std::size_t depth) {
                 print_expression(*statement.expression, depth + 1);
             }
             break;
+        case flux::StatementKind::Var:
+            std::cout << "Var(" << statement.name << ")\n";
+            if (statement.expression) {
+                print_expression(*statement.expression, depth + 1);
+            }
+            break;
         case flux::StatementKind::Assignment:
             std::cout << "Assignment\n";
             if (statement.target) {
@@ -153,17 +189,26 @@ void print_statement(const flux::Statement& statement, std::size_t depth) {
                 print_expression(*statement.expression, depth + 1);
             }
             break;
-        case flux::StatementKind::Accept:
-        case flux::StatementKind::YieldPause:
-        case flux::StatementKind::YieldExtract:
+        case flux::StatementKind::Yield:
+            std::cout << "Yield\n";
+            if (statement.expression) {
+                print_expression(*statement.expression, depth + 1);
+            }
+            break;
         case flux::StatementKind::Defer:
-            std::cout << (statement.kind == flux::StatementKind::Accept
-                              ? "Accept"
-                              : statement.kind == flux::StatementKind::YieldPause
-                                    ? "YieldPause"
-                                    : statement.kind == flux::StatementKind::YieldExtract
-                                          ? "YieldExtract"
-                                          : "Defer")
+            std::cout << "Defer\n";
+            if (statement.expression) {
+                print_expression(*statement.expression, depth + 1);
+            }
+            break;
+        case flux::StatementKind::AcceptMethod:
+        case flux::StatementKind::YieldMethod:
+        case flux::StatementKind::DeferMethod:
+            std::cout << (statement.kind == flux::StatementKind::AcceptMethod
+                            ? "AcceptMethod"
+                            : statement.kind == flux::StatementKind::YieldMethod
+                            ? "YieldMethod"
+                            : "DeferMethod")
                       << '\n';
             if (statement.expression) {
                 print_indent(depth + 1);

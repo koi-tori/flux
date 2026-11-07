@@ -8,11 +8,15 @@ namespace flux {
 
 enum class ExpressionKind {
     Number,
+    Character,
     String,
+    FormattedString,
     Identifier,
     Binary,
     Call,
-    MemberAccess
+    MemberAccess,
+    List,
+    ListComprehension
 };
 
 struct Expression {
@@ -43,14 +47,16 @@ enum class StatementKind {
     PassiveFunction,
     ActiveFunction,
     Let,
+    Var,
     Assignment,
     Delete,
     Return,
     Print,
-    Accept,
-    YieldPause,
-    YieldExtract,
+    AcceptMethod,
+    Yield,
+    YieldMethod,
     Defer,
+    DeferMethod,
     Expression
 };
 

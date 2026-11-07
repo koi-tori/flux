@@ -1,5 +1,5 @@
 def active data_manager():
-    let x = malloc_int(0)
+    var x = malloc_int(0)
     print("Work begins.")
     yield
     print("Work ends.")

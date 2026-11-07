@@ -30,7 +30,9 @@ private:
     enum class TokenKind {
         Identifier,
         Number,
+        Character,
         String,
+        FormattedString,
         Dot,
         Plus,
         Minus,
@@ -41,6 +43,8 @@ private:
         Colon,
         LeftParen,
         RightParen,
+        LeftBracket,
+        RightBracket,
         Newline,
         Indent,
         Dedent,
@@ -153,6 +157,41 @@ private:
 
             const auto token_line = line_;
             const auto token_column = column_;
+            if (character == 'f' &&
+                (peek(1) == '"' || peek(1) == '\'')) {
+                advance();
+                const char quote = advance();
+                std::string text;
+                while (peek() != quote && peek() != '\0' && peek() != '\n') {
+                    char value = advance();
+                    if (value == '\\') {
+                        const char escaped = advance();
+                        switch (escaped) {
+                            case 'n': value = '\n'; break;
+                            case 't': value = '\t'; break;
+                            case '\\': value = '\\'; break;
+                            case '"': value = '"'; break;
+                            case '\'': value = '\''; break;
+                            default:
+                                throw std::runtime_error(
+                                    "Parse error at " + std::to_string(line_) +
+                                    ":" + std::to_string(column_) +
+                                    ": invalid string escape");
+                        }
+                    }
+                    text += value;
+                }
+                if (peek() != quote) {
+                    throw std::runtime_error(
+                        "Parse error at " + std::to_string(token_line) + ":" +
+                        std::to_string(token_column) +
+                        ": unterminated formatted string");
+                }
+                advance();
+                add_token(TokenKind::FormattedString, std::move(text),
+                          token_line, token_column);
+                continue;
+            }
             if (std::isalpha(static_cast<unsigned char>(character)) ||
                 character == '_') {
                 std::string text;
@@ -168,6 +207,32 @@ private:
                 std::string text;
                 while (std::isdigit(static_cast<unsigned char>(peek()))) {
                     text += advance();
+                }
+                if (peek() == '.' &&
+                    std::isdigit(static_cast<unsigned char>(peek(1)))) {
+                    text += advance();
+                    while (std::isdigit(static_cast<unsigned char>(peek()))) {
+                        text += advance();
+                    }
+                }
+                if (peek() == '\'') {
+                    text += advance();
+                    if (!std::isalpha(static_cast<unsigned char>(peek())) &&
+                        peek() != '_') {
+                        throw std::runtime_error(
+                            "Parse error at " + std::to_string(line_) + ":" +
+                            std::to_string(column_) +
+                            ": expected a numeric type suffix");
+                    }
+                    while (std::isalnum(static_cast<unsigned char>(peek())) ||
+                           peek() == '_') {
+                        text += advance();
+                    }
+                } else if (std::isalpha(static_cast<unsigned char>(peek()))) {
+                    while (std::isalnum(static_cast<unsigned char>(peek())) ||
+                           peek() == '_') {
+                        text += advance();
+                    }
                 }
                 add_token(TokenKind::Number, std::move(text), token_line,
                           token_column);
@@ -201,8 +266,10 @@ private:
                         std::to_string(token_column) + ": unterminated string");
                 }
                 advance();
-                add_token(TokenKind::String, std::move(text), token_line,
-                          token_column);
+                const auto kind = quote == '\'' && text.size() == 1
+                                      ? TokenKind::Character
+                                      : TokenKind::String;
+                add_token(kind, std::move(text), token_line, token_column);
                 continue;
             }
 
@@ -218,6 +285,8 @@ private:
                 case ':': add_token(TokenKind::Colon, ":", token_line, token_column); break;
                 case '(': add_token(TokenKind::LeftParen, "(", token_line, token_column); break;
                 case ')': add_token(TokenKind::RightParen, ")", token_line, token_column); break;
+                case '[': add_token(TokenKind::LeftBracket, "[", token_line, token_column); break;
+                case ']': add_token(TokenKind::RightBracket, "]", token_line, token_column); break;
                 default:
                     throw std::runtime_error(
                         "Parse error at " + std::to_string(token_line) + ":" +
@@ -312,10 +381,12 @@ private:
             if (peek_token().text == "def") {
                 return parse_function();
             }
-            if (peek_token().text == "let") {
+            if (peek_token().text == "let" || peek_token().text == "var") {
+                const bool is_mutable = peek_token().text == "var";
                 ++current_;
                 Statement statement{};
-                statement.kind = StatementKind::Let;
+                statement.kind = is_mutable ? StatementKind::Var
+                                             : StatementKind::Let;
                 statement.name = consume(TokenKind::Identifier, "expected variable name").text;
                 consume(TokenKind::Equal, "expected '=' after variable name");
                 statement.expression = parse_expression();
@@ -342,7 +413,7 @@ private:
                 const bool is_yield = peek_token().text == "yield";
                 ++current_;
                 Statement statement{};
-                statement.kind = is_yield ? StatementKind::YieldPause
+                statement.kind = is_yield ? StatementKind::Yield
                                           : StatementKind::Defer;
                 if (!check(TokenKind::Newline)) {
                     statement.expression = parse_expression();
@@ -377,11 +448,11 @@ private:
             }
             const auto operation = statement.target->value;
             if (operation == "accept") {
-                statement.kind = StatementKind::Accept;
+                statement.kind = StatementKind::AcceptMethod;
             } else if (operation == "yield") {
-                statement.kind = StatementKind::YieldExtract;
+                statement.kind = StatementKind::YieldMethod;
             } else if (operation == "defer") {
-                statement.kind = StatementKind::Defer;
+                statement.kind = StatementKind::DeferMethod;
             } else {
                 error(peek_token(), "expected accept, yield, or defer context operation");
             }
@@ -406,7 +477,17 @@ private:
     }
 
     std::unique_ptr<Expression> parse_expression() {
-        return parse_additive();
+        auto expression = parse_additive();
+        while (check(TokenKind::Identifier) && peek_token().text == "belongs") {
+            const Token operation = tokens_[current_++];
+            auto binary = std::make_unique<Expression>();
+            binary->kind = ExpressionKind::Binary;
+            binary->value = operation.text;
+            binary->left = std::move(expression);
+            binary->right = parse_additive();
+            expression = std::move(binary);
+        }
+        return expression;
     }
 
     std::unique_ptr<Expression> parse_additive() {
@@ -481,11 +562,87 @@ private:
 
     std::unique_ptr<Expression> parse_primary() {
         const Token token = peek_token();
-        if (match(TokenKind::Number) || match(TokenKind::String)) {
+        if (match(TokenKind::LeftBracket)) {
             auto expression = std::make_unique<Expression>();
-            expression->kind = token.kind == TokenKind::Number
-                                   ? ExpressionKind::Number
-                                   : ExpressionKind::String;
+            expression->kind = ExpressionKind::List;
+            if (!check(TokenKind::RightBracket)) {
+                auto first = parse_expression();
+                if (check(TokenKind::Identifier) && peek_token().text == "for") {
+                    ++current_;
+                    expression->kind = ExpressionKind::ListComprehension;
+                    expression->left = std::move(first);
+                    expression->value =
+                        consume(TokenKind::Identifier,
+                                "expected a variable after 'for'")
+                            .text;
+                    const Token in_keyword =
+                        consume(TokenKind::Identifier, "expected 'in' after loop variable");
+                    if (in_keyword.text != "in") {
+                        error(in_keyword, "expected 'in' after loop variable");
+                    }
+                    expression->right = parse_expression();
+                } else {
+                    expression->arguments.push_back(std::move(first));
+                    while (match(TokenKind::Comma)) {
+                        if (check(TokenKind::RightBracket)) {
+                            break;
+                        }
+                        expression->arguments.push_back(parse_expression());
+                    }
+                }
+            }
+            consume(TokenKind::RightBracket, "expected ']' after list expression");
+            return expression;
+        }
+        if (match(TokenKind::FormattedString)) {
+            auto expression = std::make_unique<Expression>();
+            expression->kind = ExpressionKind::FormattedString;
+            expression->value = token.text;
+            for (std::size_t start = 0; start < token.text.size();) {
+                if (token.text[start] != '{') {
+                    ++start;
+                    continue;
+                }
+
+                std::size_t end = start + 1;
+                std::size_t depth = 1;
+                while (end < token.text.size() && depth > 0) {
+                    if (token.text[end] == '{') {
+                        ++depth;
+                    } else if (token.text[end] == '}') {
+                        --depth;
+                    }
+                    if (depth > 0) {
+                        ++end;
+                    }
+                }
+                if (depth != 0) {
+                    error(token, "unterminated formatted string expression");
+                }
+                if (end == start + 1) {
+                    error(token, "empty formatted string expression");
+                }
+
+                Parser fragment(token.text.substr(start + 1, end - start - 1));
+                auto interpolation = fragment.parse_expression();
+                if (!fragment.check(TokenKind::End)) {
+                    fragment.error(fragment.peek_token(),
+                                   "unexpected token in formatted string expression");
+                }
+                expression->arguments.push_back(std::move(interpolation));
+                start = end + 1;
+            }
+            return expression;
+        }
+        if (match(TokenKind::Number) || match(TokenKind::Character) ||
+            match(TokenKind::String)) {
+            auto expression = std::make_unique<Expression>();
+            expression->kind =
+                token.kind == TokenKind::Number
+                    ? ExpressionKind::Number
+                    : token.kind == TokenKind::Character
+                          ? ExpressionKind::Character
+                          : ExpressionKind::String;
             expression->value = token.text;
             return expression;
         }

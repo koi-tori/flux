@@ -1,0 +1,16 @@
+def __main__():
+    let normal_number = 0
+    let magic_number = 42'ui32
+    let character = 'a'
+    let difference = magic_number - character
+    print(f"difference = {difference}")
+    let str = "\\"
+    print(f"str = \"{str}\"")
+    print(f"str = '{str}'")
+    print(f'str = "{str}"')
+    let double_number = 20.0
+    let float_number = 20.0f
+    let expr = 20 + 10 * (5 - 3)
+    let single_letter_str = 'b'.str()
+    let one_to_five = "[" + ", ".join([i + 1 for i in range(5)]) + "]"
+    print(one_to_five)
