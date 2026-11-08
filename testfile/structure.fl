@@ -1,0 +1,11 @@
+var x = [
+    arr = [1, 2, 3],
+    obj = [ a = 1, b = 2 ]
+    ]
+
+var arr = [first = 1, 2, 3]
+
+def passive function() = [
+    data = [1, 2, 3],
+    info = [ a = 1, b = 2 ]
+    ]
