@@ -1,11 +1,13 @@
-var x = [
-    arr = [1, 2, 3],
-    obj = [ a = 1, b = 2 ]
-    ]
-
-var arr = [first = 1, 2, 3]
-
-def passive function() = [
+type MyStruct(int _x) = [
+    x = _x,
     data = [1, 2, 3],
     info = [ a = 1, b = 2 ]
     ]
+
+def __main__():
+    var x = [
+        arr = [1, 2, 3],
+        obj = [ a = 1, b = 2 ]
+        ]
+
+    var arr = [first = 1, 2, 3]
