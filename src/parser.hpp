@@ -3,34 +3,15 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <set>
 
-namespace flux {
-
-namespace Parser {
+namespace flux::Parser {
 
 enum class ParserErrorType {
   UnexpectedToken,
   UnexpectedEndOfFile,
   InvalidSyntax,
-  InvalidExpression,
-  InvalidStatement,
-  InvalidFunctionDefinition,
-  InvalidVariableDeclaration,
-  InvalidTypeDefinition,
-  InvalidImportStatement,
-  InvalidIfStatement,
-  InvalidWhileStatement,
-  InvalidForStatement,
-  InvalidMatchStatement,
-  InvalidCaseStatement,
-  InvalidBreakStatement,
-  InvalidContinueStatement,
-  InvalidReturnStatement,
-  InvalidYieldStatement,
-  InvalidDeferStatement,
-  InvalidAcceptStatement,
-  InvalidResumeStatement,
-  InvalidImmediateStatement
+  //...
 };
 
 struct ParserResult {
@@ -41,8 +22,6 @@ struct ParserResult {
   ParserResult(bool s, const std::string& msg = "", ParserErrorType type = ParserErrorType::UnexpectedToken)
       : success(s), errorMessage(msg), errorType(type) {}
 };
-
-namespace Token {
 
 enum class TokenType {
   Identifier,
@@ -70,36 +49,23 @@ class Token {
   int _column;
 };
 
-enum class KeywordType {
-  Def,
-  Let,
-  Var,
-  Typedef,
-  Import,
-  If,
-  Else,
-  Elif,
-  While,
-  For,
-  Match,
-  Case,
-  Break,
-  Continue,
-  Return,
-  Yield,
-  Defer,
-  Accept,
-  Resume,
-  Immediate,
+static const std::set<std::string> keywords = {
+    "def", "let", "var", "typedef", "import",
+    "if", "else", "elif", "while", "for", "in", "match", "case", "break",
+    "continue",
+    "return", "yield", "defer", "accept", "resume",
+    "char", "short", "int", "long", "float", "double", "bool", "string",
+    "passive", "active", "immediate",
+    "true", "false", "print", "pass"
 };
 
 ParserResult tokenize(const std::string& source, std::vector<Token>& tokens);
 
-}  // namespace Token
-
 enum ASTNodeType {
+  Program,
   Statement,
   Expression,
+  TypeModifier,
   FunctionDefinition,
   VariableDeclaration,
   TypeDefinition,
@@ -114,58 +80,90 @@ enum ASTNodeType {
   ReturnStatement,
   YieldStatement,
   DeferStatement,
-  AcceptStatement,
   ResumeStatement,
-  ImmediateStatement,
+  PrintStatement,
   UnaryExpression,
   BinaryExpression,
   LiteralExpression,
   IdentifierExpression,
   CallExpression,
-  AssignmentExpression,
 };
 
 enum class ModifierType {
   PASSIVE,
   ACTIVE,
+  IMMEDIATE,
   MUTABLE,
   IMMUTABLE,
+  CHAR,
+  SHORT,
   INT,
+  LONGLONG,
   FLOAT,
   DOUBLE,
-  CHAR,
-  STRING,
-  FORMATTED_STRING,
   BOOL,
-  VOID,
-};
-
-struct Parameter {
-  std::string name;
-  std::vector<ModifierType> modifiers;
+  STRING,
+  CUSTOM,
 };
 
 class ASTNode {
  public:
+  ASTNode() : type(Statement) {}
   virtual ~ASTNode() = default;
   ASTNodeType type;
 };
 
+class TypeModifierNode : public ASTNode {
+ public:
+  TypeModifierNode() { type = TypeModifier; }
+  virtual ~TypeModifierNode() = default;
+  std::vector<std::unique_ptr<TypeModifierNode>> sub_types;
+};
+
+class BasicTypeNode : public TypeModifierNode {
+ public:
+  BasicTypeNode() : basic_type(ModifierType::CUSTOM) {}
+  virtual ~BasicTypeNode() = default;
+  ModifierType basic_type;
+  std::string name;
+};
+
 class ExpressionNode : public ASTNode {
  public:
+  ExpressionNode() { type = Expression; }
   virtual ~ExpressionNode() = default;
+  std::string op;
   std::unique_ptr<ExpressionNode> left;
   std::unique_ptr<ExpressionNode> right;
 };
 
-class SingleExpressionNode : public ExpressionNode {
+class LiteralExpressionNode : public ExpressionNode {
  public:
-  virtual ~SingleExpressionNode() = default;
+  LiteralExpressionNode() { type = LiteralExpression; }
+  virtual ~LiteralExpressionNode() = default;
   std::string value;
+};
+
+class IdentifierExpressionNode : public ExpressionNode {
+ public:
+  IdentifierExpressionNode() { type = IdentifierExpression; }
+  virtual ~IdentifierExpressionNode() = default;
+  std::string name;
+};
+
+class CallExpressionNode : public ExpressionNode {
+ public:
+  CallExpressionNode() { type = CallExpression; }
+  virtual ~CallExpressionNode() = default;
+  std::string function_name;
+  std::set<ModifierType> function_modifiers;
+  std::vector<std::unique_ptr<TypeModifierNode>> parameter_types;
+  std::vector<std::unique_ptr<ExpressionNode>> arguments;
 };
 
 class StatementNode : public ASTNode {
  public:
+  StatementNode() { type = Statement; }
   virtual ~StatementNode() = default;
   std::unique_ptr<ExpressionNode> expr;
   std::unique_ptr<StatementNode> body;
@@ -174,29 +172,101 @@ class StatementNode : public ASTNode {
 
 class StatementListNode : public StatementNode {
  public:
+  StatementListNode() { type = Statement; }
   virtual ~StatementListNode() = default;
   std::vector<std::unique_ptr<StatementNode>> statements;
 };
 
+class ForStatementNode : public StatementNode {
+ public:
+  ForStatementNode() { type = ForStatement; }
+  virtual ~ForStatementNode() = default;
+  std::unique_ptr<IdentifierExpressionNode> element;
+  std::unique_ptr<ExpressionNode> iterator;
+  std::unique_ptr<StatementListNode> body;
+};
+
+class ProgramNode : public ASTNode {
+ public:
+  ProgramNode() { type = Program; }
+  std::unique_ptr<StatementListNode> body;
+};
+
+class IfStatementNode : public StatementNode {
+ public:
+  IfStatementNode() { type = IfStatement; }
+  std::unique_ptr<ExpressionNode> condition;
+  std::unique_ptr<StatementListNode> body;
+  std::vector<std::unique_ptr<IfStatementNode>> elif_branches;
+  std::unique_ptr<StatementListNode> else_body;
+};
+
+class WhileStatementNode : public StatementNode {
+ public:
+  WhileStatementNode() { type = WhileStatement; }
+  std::unique_ptr<ExpressionNode> condition;
+  std::unique_ptr<StatementListNode> body;
+};
+
+class MatchStatementNode : public StatementNode {
+ public:
+  MatchStatementNode() { type = MatchStatement; }
+  std::unique_ptr<ExpressionNode> subject;
+  std::vector<std::unique_ptr<class CaseStatementNode>> cases;
+};
+
+class CaseStatementNode : public StatementNode {
+ public:
+  CaseStatementNode() { type = CaseStatement; }
+  std::unique_ptr<ExpressionNode> pattern;
+  std::unique_ptr<StatementListNode> body;
+};
+
+class BreakStatementNode : public StatementNode {
+ public:
+  BreakStatementNode() { type = BreakStatement; }
+};
+
+class ContinueStatementNode : public StatementNode {
+ public:
+  ContinueStatementNode() { type = ContinueStatement; }
+};
+
+class ReturnStatementNode : public StatementNode {
+ public:
+  ReturnStatementNode() { type = ReturnStatement; }
+};
+
 class FunctionDefinitionNode : public StatementNode {
  public:
+  FunctionDefinitionNode() { type = FunctionDefinition; }
   virtual ~FunctionDefinitionNode() = default;
   std::string name;
-  std::vector<ModifierType> function_modifiers;
-  std::vector<Parameter> parameters;
+  std::set<ModifierType> function_modifiers;
+  std::vector<std::unique_ptr<TypeModifierNode>> parameter_types;
+  std::vector<std::string> parameter_names;
   std::unique_ptr<StatementListNode> body;
 };
 
 class VariableDeclarationNode : public StatementNode {
  public:
+  VariableDeclarationNode() { type = VariableDeclaration; }
   virtual ~VariableDeclarationNode() = default;
   std::string name;
-  std::vector<ModifierType> variable_modifiers;
+  bool is_mutable = false;
+  std::set<ModifierType> variable_modifiers;
   std::unique_ptr<ExpressionNode> initializer;
 };
 
-ParserResult parse(const std::vector<Token::Token>& tokens, std::unique_ptr<ASTNode>& ast);
+class TypeDefinationNode : public StatementNode {
+ public:
+  TypeDefinationNode() { type = TypeDefinition; }
+  virtual ~TypeDefinationNode() = default;
+  std::string name;
+  std::set<ModifierType> type_modifiers;
+  std::unique_ptr<TypeModifierNode> type_definition;
+};
 
-}  // namespace Parser
+ParserResult parse(const std::vector<Token>& tokens, std::unique_ptr<ASTNode>& ast);
 
-}  // namespace flux
+}  // namespace flux::Parser
