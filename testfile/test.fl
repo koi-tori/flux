@@ -2,6 +2,8 @@ def active passive add(int a, int b):
     let result = 1 + 2 * (3 - 4) % 5
     let float ratio = 14.0
     let text = "xa"
+    let fstr = f"a = {a}"
+    let arr = [1, 2, 3]
     var enabled = true
     if a == b || a <= b:
         result = a + b
@@ -22,3 +24,22 @@ def active passive add(int a, int b):
     return result
 
 let answer = add(1, 2)
+
+typedef MyStruct(int _x) = [
+    int x = _x,
+    bool b = false,
+    c = 42.0,
+    arr = [1, 2, 3]
+]
+
+let MyStruct Struct = [
+    a = 0,
+    false,
+    42.0,
+    [1, 2, 3]
+]
+
+let Struct = [
+    0, false,
+    [1, 2, 3]
+]

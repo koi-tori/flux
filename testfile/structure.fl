@@ -1,4 +1,4 @@
-type MyStruct(int _x) = [
+typedef MyStruct(int _x) = [
     x = _x,
     data = [1, 2, 3],
     info = [ a = 1, b = 2 ]
@@ -10,4 +10,4 @@ def __main__():
         obj = [ a = 1, b = 2 ]
         ]
 
-    var arr = [first = 1, 2, 3]
+    var arr = [1, 2, 3]

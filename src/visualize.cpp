@@ -101,11 +101,39 @@ void printNode(const ASTNode* node, std::ostream& output, std::size_t depth,
                   std::string(declaration->is_mutable ? "VarDeclaration "
                                                       : "LetDeclaration ") +
                   declaration->name);
+    if (!declaration->declared_type_name.empty()) {
+      printLine(output, depth + 1,
+                "Declared type: " + declaration->declared_type_name);
+    }
     if (!declaration->variable_modifiers.empty()) {
       printLine(output, depth + 1,
                 "Modifiers: " + formatModifiers(declaration->variable_modifiers));
     }
     printNode(declaration->initializer.get(), output, depth + 1, "Initializer");
+    return;
+  }
+
+  if (const auto* definition =
+          dynamic_cast<const TypeDefinationNode*>(node)) {
+    printLine(output, depth, label + ": TypeDefinition " + definition->name);
+    for (std::size_t i = 0; i < definition->parameter_names.size(); ++i) {
+      printLine(output, depth + 1,
+                "Parameter: " + definition->parameter_names[i]);
+      if (i < definition->parameter_types.size()) {
+        printNode(definition->parameter_types[i].get(), output, depth + 2,
+                  "Type");
+      }
+    }
+    printLine(output, depth + 1, "Fields");
+    for (const auto& field : definition->fields) {
+      std::string fieldLabel = "Field: " + field.name;
+      if (field.name.empty()) fieldLabel = "Field";
+      printLine(output, depth + 2, fieldLabel);
+      if (field.declared_type) {
+        printNode(field.declared_type.get(), output, depth + 3, "Type");
+      }
+      printNode(field.default_value.get(), output, depth + 3, "Default");
+    }
     return;
   }
 
@@ -171,6 +199,44 @@ void printNode(const ASTNode* node, std::ostream& output, std::size_t depth,
     return;
   }
 
+  if (const auto* formatted =
+          dynamic_cast<const FormattedStringExpressionNode*>(node)) {
+    printLine(output, depth, label + ": FormattedString");
+    for (std::size_t i = 0; i < formatted->interpolations.size(); ++i) {
+      printLine(output, depth + 1,
+                "Text: \"" + formatted->text_segments[i] + "\"");
+      printNode(formatted->interpolations[i].get(), output, depth + 1,
+                "Interpolation");
+    }
+    if (!formatted->text_segments.empty()) {
+      printLine(output, depth + 1,
+                "Text: \"" + formatted->text_segments.back() + "\"");
+    }
+    return;
+  }
+
+  if (const auto* array = dynamic_cast<const ArrayExpressionNode*>(node)) {
+    printLine(output, depth, label + ": Array");
+    for (std::size_t i = 0; i < array->elements.size(); ++i) {
+      printNode(array->elements[i].get(), output, depth + 1,
+                "Element " + std::to_string(i + 1));
+    }
+    return;
+  }
+
+  if (const auto* structure =
+          dynamic_cast<const StructureExpressionNode*>(node)) {
+    printLine(output, depth, label + ": Structure");
+    for (std::size_t i = 0; i < structure->fields.size(); ++i) {
+      const auto& field = structure->fields[i];
+      printNode(field.value.get(), output, depth + 1,
+                field.name.empty()
+                    ? "Field " + std::to_string(i + 1)
+                    : "Field " + field.name);
+    }
+    return;
+  }
+
   if (const auto* literal = dynamic_cast<const LiteralExpressionNode*>(node)) {
     printLine(output, depth, label + ": Literal " + literal->value);
     return;
@@ -231,8 +297,8 @@ void printSyntaxTree(const ASTNode* root, std::ostream& output) {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  if (argc != 2) {
-    std::cerr << "usage: flux-parser <source-file>\n";
+  if (argc < 2 || argc > 3) {
+    std::cerr << "usage: flux-parser <source-file> [ast-output-file]\n";
     return 2;
   }
 
@@ -258,6 +324,21 @@ int main(int argc, char* argv[]) {
     std::cerr << result.errorMessage << '\n';
     return 1;
   }
-  printSyntaxTree(ast.get(), std::cout);
+  std::ofstream outputFile;
+  std::ostream* output = &std::cout;
+  if (argc == 3) {
+    outputFile.open(argv[2]);
+    if (!outputFile) {
+      std::cerr << "unable to open AST output file: " << argv[2] << '\n';
+      return 2;
+    }
+    output = &outputFile;
+  }
+
+  printSyntaxTree(ast.get(), *output);
+  if (!*output) {
+    std::cerr << "failed to write AST output\n";
+    return 2;
+  }
   return 0;
 }

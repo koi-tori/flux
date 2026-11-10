@@ -13,6 +13,9 @@ fi
 
 "$script_dir/build.sh"
 
+ast_dir="$root_dir/log/ast"
+mkdir -p "$ast_dir"
+
 passed=0
 failed=0
 while IFS= read -r entry || [[ -n "$entry" ]]; do
@@ -36,7 +39,9 @@ while IFS= read -r entry || [[ -n "$entry" ]]; do
     fi
 
     printf 'Running: %s\n' "$test_case"
-    if "$binary" "$source_file"; then
+    ast_file="$ast_dir/$(basename -- "$source_file").ast"
+    if "$binary" "$source_file" "$ast_file"; then
+        printf 'AST saved: %s\n' "$ast_file"
         printf 'PASS: %s\n' "$test_case"
         passed=$((passed + 1))
     else

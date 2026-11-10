@@ -85,6 +85,13 @@ class ParserImpl {
     return program;
   }
 
+  std::unique_ptr<ExpressionNode> parseStandaloneExpression() {
+    auto expression = parseExpression();
+    if (isSymbol("NEWLINE")) advance();
+    if (!atEnd()) fail("unexpected token in interpolation");
+    return expression;
+  }
+
  private:
   const std::vector<Token>& tokens_;
   std::size_t position_ = 0;
@@ -96,6 +103,16 @@ class ParserImpl {
   const Token& peek(std::size_t offset = 1) const {
     const std::size_t index = position_ + offset;
     return tokens_[index < tokens_.size() ? index : tokens_.size() - 1];
+  }
+
+  bool isKeywordAt(std::size_t offset, const std::string& value) const {
+    const Token& token = peek(offset);
+    return token.getType() == TokenType::Keyword && token.getValue() == value;
+  }
+
+  bool isSymbolAt(std::size_t offset, const std::string& value) const {
+    const Token& token = peek(offset);
+    return token.getType() == TokenType::Symbol && token.getValue() == value;
   }
 
   bool atEnd() const { return current().getType() == TokenType::EndOfFile; }
@@ -159,6 +176,7 @@ class ParserImpl {
     if (matchKeyword("while")) return parseWhileStatement();
     if (matchKeyword("for")) return parseForStatement();
     if (matchKeyword("match")) return parseMatchStatement();
+    if (matchKeyword("typedef")) return parseTypeDefinition();
     if (matchKeyword("def")) return parseFunctionDefinition();
     if (isKeyword("let") || isKeyword("var")) return parseVariableDeclaration();
     if (matchKeyword("return")) return parseReturnStatement();
@@ -284,6 +302,54 @@ class ParserImpl {
     return statement;
   }
 
+  std::unique_ptr<TypeDefinationNode> parseTypeDefinition() {
+    auto statement = std::make_unique<TypeDefinationNode>();
+    statement->name = expectIdentifier().getValue();
+    expectSymbol("(");
+    if (!isSymbol(")")) {
+      do {
+        statement->parameter_types.push_back(parseType());
+        statement->parameter_names.push_back(expectIdentifier().getValue());
+      } while (matchSymbol(","));
+    }
+    expectSymbol(")");
+    expectSymbol("=");
+    expectSymbol("[");
+
+    while (!atEnd() && !isSymbol("]")) {
+      if (isSymbol(",")) {
+        advance();
+        continue;
+      }
+
+      TypeDefinationNode::Field field;
+      const bool hasDeclaredType =
+          (current().getType() == TokenType::Keyword ||
+           current().getType() == TokenType::Identifier) &&
+          peek().getType() == TokenType::Identifier &&
+          isSymbolAt(2, "=");
+      if (hasDeclaredType) {
+        field.declared_type = parseType();
+        field.name = expectIdentifier().getValue();
+      } else if (current().getType() == TokenType::Identifier &&
+                 isSymbolAt(1, "=")) {
+        field.name = advance().getValue();
+      } else {
+        fail("expected a field declaration in typedef");
+      }
+      expectSymbol("=");
+      field.default_value = parseExpression();
+      statement->fields.push_back(std::move(field));
+
+      if (!matchSymbol("," ) && !isSymbol("]")) {
+        fail("expected ',' or ']' after field declaration");
+      }
+    }
+    expectSymbol("]");
+    expectLineEnd();
+    return statement;
+  }
+
   std::unique_ptr<FunctionDefinitionNode> parseFunctionDefinition() {
     auto statement = std::make_unique<FunctionDefinitionNode>();
     while (isModifierKeyword(current().getValue()) ||
@@ -341,14 +407,39 @@ class ParserImpl {
     }
     if (current().getType() == TokenType::Identifier &&
         peek().getType() == TokenType::Identifier) {
+      statement->declared_type_name = advance().getValue();
       statement->variable_modifiers.insert(ModifierType::CUSTOM);
-      advance();
     }
     statement->name = expectIdentifier().getValue();
     if (!matchSymbol("=")) {
       fail("expected '=' in " + declarationKind + " declaration");
     }
     statement->initializer = parseExpression();
+    if (!statement->declared_type_name.empty()) {
+      if (auto* array =
+              dynamic_cast<ArrayExpressionNode*>(statement->initializer.get())) {
+        auto structure = std::make_unique<StructureExpressionNode>();
+        for (auto& element : array->elements) {
+          structure->fields.push_back({"", std::move(element)});
+        }
+        statement->initializer = std::move(structure);
+        statement->is_structure = true;
+      }
+    } else if (!statement->name.empty() &&
+               std::isupper(static_cast<unsigned char>(statement->name[0]))) {
+      if (auto* array =
+              dynamic_cast<ArrayExpressionNode*>(statement->initializer.get())) {
+        auto structure = std::make_unique<StructureExpressionNode>();
+        for (auto& element : array->elements) {
+          structure->fields.push_back({"", std::move(element)});
+        }
+        statement->initializer = std::move(structure);
+        statement->is_structure = true;
+      }
+    }
+    if (dynamic_cast<StructureExpressionNode*>(statement->initializer.get())) {
+      statement->is_structure = true;
+    }
     expectLineEnd();
     return statement;
   }
@@ -440,6 +531,9 @@ class ParserImpl {
   }
 
   std::unique_ptr<ExpressionNode> parsePrimary() {
+    if (current().getType() == TokenType::FormattedString) {
+      return parseFormattedString();
+    }
     if (current().getType() == TokenType::Number ||
         current().getType() == TokenType::String || isKeyword("true") ||
         isKeyword("false")) {
@@ -452,6 +546,7 @@ class ParserImpl {
       expression->name = advance().getValue();
       return expression;
     }
+    if (matchSymbol("[")) return parseAggregate();
     if (matchSymbol("(")) {
       auto expression = parseExpression();
       expectSymbol(")");
@@ -461,6 +556,103 @@ class ParserImpl {
          atEnd() ? ParserErrorType::UnexpectedEndOfFile
                  : ParserErrorType::UnexpectedToken);
   }
+
+  std::unique_ptr<ExpressionNode> parseAggregate() {
+    std::vector<StructureField> fields;
+    bool hasNamedFields = false;
+    if (!isSymbol("]")) {
+      do {
+        StructureField field;
+        if (current().getType() == TokenType::Identifier &&
+            isSymbolAt(1, "=")) {
+          field.name = advance().getValue();
+          expectSymbol("=");
+          hasNamedFields = true;
+        }
+        field.value = parseExpression();
+        fields.push_back(std::move(field));
+      } while (matchSymbol(",") && !isSymbol("]"));
+    }
+    expectSymbol("]");
+
+    if (hasNamedFields) {
+      auto structure = std::make_unique<StructureExpressionNode>();
+      structure->fields = std::move(fields);
+      return structure;
+    }
+    auto array = std::make_unique<ArrayExpressionNode>();
+    for (auto& field : fields) {
+      array->elements.push_back(std::move(field.value));
+    }
+    return array;
+  }
+
+  std::unique_ptr<ExpressionNode> parseFormattedString() {
+    const std::string raw = advance().getValue();
+    const std::size_t contentStart = 2;
+    const std::size_t contentEnd = raw.size() - 1;
+    auto expression = std::make_unique<FormattedStringExpressionNode>();
+    std::string text;
+
+    for (std::size_t index = contentStart; index < contentEnd;) {
+      if (raw[index] == '{' && index + 1 < contentEnd &&
+          raw[index + 1] == '{') {
+        text.push_back('{');
+        index += 2;
+        continue;
+      }
+      if (raw[index] == '}' && index + 1 < contentEnd &&
+          raw[index + 1] == '}') {
+        text.push_back('}');
+        index += 2;
+        continue;
+      }
+      if (raw[index] != '{') {
+        text.push_back(raw[index++]);
+        continue;
+      }
+
+      expression->text_segments.push_back(std::move(text));
+      text.clear();
+      const std::size_t interpolationStart = ++index;
+      std::size_t nesting = 1;
+      char quote = '\0';
+      bool escaped = false;
+      while (index < contentEnd && nesting > 0) {
+        const char character = raw[index++];
+        if (quote != '\0') {
+          if (escaped) {
+            escaped = false;
+          } else if (character == '\\') {
+            escaped = true;
+          } else if (character == quote) {
+            quote = '\0';
+          }
+        } else if (character == '"' || character == '\'') {
+          quote = character;
+        } else if (character == '{') {
+          ++nesting;
+        } else if (character == '}') {
+          --nesting;
+        }
+      }
+      if (nesting != 0) fail("unterminated formatted string interpolation",
+                             ParserErrorType::InvalidSyntax);
+      const std::string source =
+          raw.substr(interpolationStart, index - interpolationStart - 1);
+      std::vector<Token> tokens;
+      const ParserResult result = tokenize(source, tokens);
+      if (!result.success) {
+        fail(result.errorMessage, result.errorType);
+      }
+      ParserImpl interpolationParser(tokens);
+      expression->interpolations.push_back(
+          interpolationParser.parseStandaloneExpression());
+    }
+
+    expression->text_segments.push_back(std::move(text));
+    return expression;
+  }
 };
 
 ParserResult tokenize(const std::string& source,
@@ -468,6 +660,7 @@ ParserResult tokenize(const std::string& source,
   std::vector<Token> result;
   std::vector<std::size_t> indentation{0};
   std::size_t offset = 0;
+  std::size_t delimiterDepth = 0;
   int lineNumber = 1;
 
   while (offset < source.size()) {
@@ -492,19 +685,21 @@ ParserResult tokenize(const std::string& source,
       continue;
     }
 
-    if (indent > indentation.back()) {
-      indentation.push_back(indent);
-      result.emplace_back(TokenType::Symbol, "INDENT", lineNumber, 1);
-    } else {
-      while (indent < indentation.back()) {
-        indentation.pop_back();
-        result.emplace_back(TokenType::Symbol, "DEDENT", lineNumber,
-                            static_cast<int>(cursor - lineStart + 1));
-      }
-      if (indent != indentation.back()) {
-        return syntaxError("inconsistent indentation",
-                           ParserErrorType::InvalidSyntax, lineNumber,
-                           static_cast<int>(cursor - lineStart + 1));
+    if (delimiterDepth == 0) {
+      if (indent > indentation.back()) {
+        indentation.push_back(indent);
+        result.emplace_back(TokenType::Symbol, "INDENT", lineNumber, 1);
+      } else {
+        while (indent < indentation.back()) {
+          indentation.pop_back();
+          result.emplace_back(TokenType::Symbol, "DEDENT", lineNumber,
+                              static_cast<int>(cursor - lineStart + 1));
+        }
+        if (indent != indentation.back()) {
+          return syntaxError("inconsistent indentation",
+                             ParserErrorType::InvalidSyntax, lineNumber,
+                             static_cast<int>(cursor - lineStart + 1));
+        }
       }
     }
 
@@ -517,6 +712,32 @@ ParserResult tokenize(const std::string& source,
       if (character == '#') break;
 
       const int column = static_cast<int>(cursor - lineStart + 1);
+      const bool formattedString =
+          (character == 'f' || character == 'F') && cursor + 1 < lineEnd &&
+          (source[cursor + 1] == '"' || source[cursor + 1] == '\'');
+      if (formattedString) {
+        const char quote = source[cursor + 1];
+        const std::size_t start = cursor;
+        cursor += 2;
+        bool closed = false;
+        while (cursor < lineEnd) {
+          if (source[cursor] == '\\') {
+            cursor += cursor + 1 < lineEnd ? 2 : 1;
+          } else if (source[cursor++] == quote) {
+            closed = true;
+            break;
+          }
+        }
+        if (!closed) {
+          return syntaxError("unterminated formatted string",
+                             ParserErrorType::InvalidSyntax, lineNumber,
+                             column);
+        }
+        result.emplace_back(TokenType::FormattedString,
+                            source.substr(start, cursor - start), lineNumber,
+                            column);
+        continue;
+      }
       if (isIdentifierStart(character)) {
         const std::size_t start = cursor++;
         while (cursor < lineEnd && isIdentifierPart(source[cursor])) ++cursor;
@@ -601,6 +822,11 @@ ParserResult tokenize(const std::string& source,
           std::string::npos) {
         result.emplace_back(TokenType::Symbol, std::string(1, character),
                             lineNumber, column);
+        if (character == '(' || character == '[' || character == '{') {
+          ++delimiterDepth;
+        } else if (character == ')' || character == ']' || character == '}') {
+          if (delimiterDepth > 0) --delimiterDepth;
+        }
         ++cursor;
         continue;
       }
@@ -609,8 +835,10 @@ ParserResult tokenize(const std::string& source,
                          ParserErrorType::InvalidSyntax, lineNumber, column);
     }
 
-    result.emplace_back(TokenType::Symbol, "NEWLINE", lineNumber,
-                        static_cast<int>(lineEnd - lineStart + 1));
+    if (delimiterDepth == 0) {
+      result.emplace_back(TokenType::Symbol, "NEWLINE", lineNumber,
+                          static_cast<int>(lineEnd - lineStart + 1));
+    }
     ++lineNumber;
   }
 

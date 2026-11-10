@@ -27,6 +27,7 @@ enum class TokenType {
   Identifier,
   Number,
   String,
+  FormattedString,
   Keyword,
   Symbol,
   EndOfFile,
@@ -56,7 +57,7 @@ static const std::set<std::string> keywords = {
     "return", "yield", "defer", "accept", "resume",
     "char", "short", "int", "long", "float", "double", "bool", "string",
     "passive", "active", "immediate",
-    "true", "false", "print", "pass"
+    "true", "false", "print", "pass",
 };
 
 ParserResult tokenize(const std::string& source, std::vector<Token>& tokens);
@@ -87,6 +88,9 @@ enum ASTNodeType {
   LiteralExpression,
   IdentifierExpression,
   CallExpression,
+  ArrayExpression,
+  StructureExpression,
+  FormattedStringExpression,
 };
 
 enum class ModifierType {
@@ -144,6 +148,13 @@ class LiteralExpressionNode : public ExpressionNode {
   std::string value;
 };
 
+class FormattedStringExpressionNode : public ExpressionNode {
+ public:
+  FormattedStringExpressionNode() { type = FormattedStringExpression; }
+  std::vector<std::string> text_segments;
+  std::vector<std::unique_ptr<ExpressionNode>> interpolations;
+};
+
 class IdentifierExpressionNode : public ExpressionNode {
  public:
   IdentifierExpressionNode() { type = IdentifierExpression; }
@@ -151,13 +162,28 @@ class IdentifierExpressionNode : public ExpressionNode {
   std::string name;
 };
 
+class ArrayExpressionNode : public ExpressionNode {
+ public:
+  ArrayExpressionNode() { type = ArrayExpression; }
+  std::vector<std::unique_ptr<ExpressionNode>> elements;
+};
+
+struct StructureField {
+  std::string name;
+  std::unique_ptr<ExpressionNode> value;
+};
+
+class StructureExpressionNode : public ExpressionNode {
+ public:
+  StructureExpressionNode() { type = StructureExpression; }
+  std::vector<StructureField> fields;
+};
+
 class CallExpressionNode : public ExpressionNode {
  public:
   CallExpressionNode() { type = CallExpression; }
   virtual ~CallExpressionNode() = default;
   std::string function_name;
-  std::set<ModifierType> function_modifiers;
-  std::vector<std::unique_ptr<TypeModifierNode>> parameter_types;
   std::vector<std::unique_ptr<ExpressionNode>> arguments;
 };
 
@@ -253,7 +279,9 @@ class VariableDeclarationNode : public StatementNode {
   VariableDeclarationNode() { type = VariableDeclaration; }
   virtual ~VariableDeclarationNode() = default;
   std::string name;
+  std::string declared_type_name;
   bool is_mutable = false;
+  bool is_structure = false;
   std::set<ModifierType> variable_modifiers;
   std::unique_ptr<ExpressionNode> initializer;
 };
@@ -263,6 +291,14 @@ class TypeDefinationNode : public StatementNode {
   TypeDefinationNode() { type = TypeDefinition; }
   virtual ~TypeDefinationNode() = default;
   std::string name;
+  std::vector<std::unique_ptr<TypeModifierNode>> parameter_types;
+  std::vector<std::string> parameter_names;
+  struct Field {
+    std::string name;
+    std::unique_ptr<TypeModifierNode> declared_type;
+    std::unique_ptr<ExpressionNode> default_value;
+  };
+  std::vector<Field> fields;
   std::set<ModifierType> type_modifiers;
   std::unique_ptr<TypeModifierNode> type_definition;
 };
