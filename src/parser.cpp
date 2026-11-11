@@ -265,10 +265,10 @@ class ParserImpl {
   std::unique_ptr<ForStatementNode> parseForStatement() {
     auto statement = std::make_unique<ForStatementNode>();
     const Token& name = expectIdentifier();
-    statement->element = std::make_unique<IdentifierExpressionNode>();
-    statement->element->name = name.getValue();
+    statement->iterator_varible = std::make_unique<IdentifierExpressionNode>();
+    statement->iterator_varible->name = name.getValue();
     if (!matchKeyword("in")) fail("expected 'in' in for statement");
-    statement->iterator = parseExpression();
+    statement->iterable = parseExpression();
     expectSymbol(":");
     statement->body = parseSuite();
     return statement;

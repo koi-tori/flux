@@ -55,9 +55,9 @@ static const std::set<std::string> keywords = {
     "if", "else", "elif", "while", "for", "in", "match", "case", "default", "break", "continue", "return",
     "defer", "immediate", "accept", "yield", "resume",
     "char", "short", "int", "long", "float", "double", "bool", "string",
-    "passive", "active",
+    "passive", "active", "transient", "inline",
     "true", "false", "print", "pass",
-    "local", "self", "fetch",
+    "nonlocal", "self", "fetch",
     "try", "catch", "finally", "throw",
 };
 
@@ -226,8 +226,8 @@ class ForStatementNode : public StatementNode {
  public:
   ForStatementNode() { type = ForStatement; }
   virtual ~ForStatementNode() = default;
-  std::unique_ptr<IdentifierExpressionNode> element;
-  std::unique_ptr<ExpressionNode> iterator;
+  std::unique_ptr<IdentifierExpressionNode> iterator_varible;
+  std::unique_ptr<ExpressionNode> iterable;
   std::unique_ptr<StatementListNode> body;
 };
 

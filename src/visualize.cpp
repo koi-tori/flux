@@ -155,8 +155,8 @@ void printNode(const ASTNode* node, std::ostream& output, std::size_t depth,
 
   if (const auto* loop = dynamic_cast<const ForStatementNode*>(node)) {
     printLine(output, depth, label + ": ForStatement");
-    printNode(loop->element.get(), output, depth + 1, "Element");
-    printNode(loop->iterator.get(), output, depth + 1, "Iterator");
+    printNode(loop->iterator_varible.get(), output, depth + 1, "Iterator");
+    printNode(loop->iterable.get(), output, depth + 1, "Iterable");
     printStatementList(loop->body.get(), output, depth + 1, "Body");
     return;
   }

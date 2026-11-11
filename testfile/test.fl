@@ -1,4 +1,8 @@
-def active passive add(int a, int b):
+def __main__():
+    let a = 1
+    let int b = 2
+    def add(int x, int y):
+        return x + y
     let result = 1 + 2 * (3 - 4) % 5
     let float ratio = 14.0
     let text = "xa"
@@ -40,7 +44,7 @@ let MyStruct Struct = [
     [1, 2, 3]
 ]
 
-let Struct = [
+let LambdaStruct = [
     0, false,
     [1, 2, 3]
 ]
