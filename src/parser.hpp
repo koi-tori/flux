@@ -51,13 +51,14 @@ class Token {
 };
 
 static const std::set<std::string> keywords = {
-    "def", "let", "var", "typedef", "import",
-    "if", "else", "elif", "while", "for", "in", "match", "case", "break",
-    "continue",
-    "return", "yield", "defer", "accept", "resume",
+    "def", "let", "var", "typedef", "import", "as",
+    "if", "else", "elif", "while", "for", "in", "match", "case", "default", "break", "continue", "return",
+    "defer", "immediate", "accept", "yield", "resume",
     "char", "short", "int", "long", "float", "double", "bool", "string",
-    "passive", "active", "immediate",
+    "passive", "active",
     "true", "false", "print", "pass",
+    "local", "self", "fetch",
+    "try", "catch", "finally", "throw",
 };
 
 ParserResult tokenize(const std::string& source, std::vector<Token>& tokens);
@@ -79,8 +80,10 @@ enum ASTNodeType {
   BreakStatement,
   ContinueStatement,
   ReturnStatement,
+  WaitForYieldStatement,
   YieldStatement,
   DeferStatement,
+  AcceptStatement,
   ResumeStatement,
   PrintStatement,
   UnaryExpression,
@@ -91,14 +94,14 @@ enum ASTNodeType {
   ArrayExpression,
   StructureExpression,
   FormattedStringExpression,
+  MemberAccessExpression,
+  ListComprehensionExpression,
 };
 
 enum class ModifierType {
   PASSIVE,
   ACTIVE,
   IMMEDIATE,
-  MUTABLE,
-  IMMUTABLE,
   CHAR,
   SHORT,
   INT,
@@ -168,6 +171,21 @@ class ArrayExpressionNode : public ExpressionNode {
   std::vector<std::unique_ptr<ExpressionNode>> elements;
 };
 
+class ListComprehensionExpressionNode : public ExpressionNode {
+ public:
+  ListComprehensionExpressionNode() { type = ListComprehensionExpression; }
+  std::unique_ptr<ExpressionNode> element;
+  std::unique_ptr<IdentifierExpressionNode> iterator_variable;
+  std::unique_ptr<ExpressionNode> iterable;
+};
+
+class MemberAccessExpressionNode : public ExpressionNode {
+ public:
+  MemberAccessExpressionNode() { type = MemberAccessExpression; }
+  std::unique_ptr<ExpressionNode> object;
+  std::string member_name;
+};
+
 struct StructureField {
   std::string name;
   std::unique_ptr<ExpressionNode> value;
@@ -184,6 +202,7 @@ class CallExpressionNode : public ExpressionNode {
   CallExpressionNode() { type = CallExpression; }
   virtual ~CallExpressionNode() = default;
   std::string function_name;
+  std::unique_ptr<ExpressionNode> callee;
   std::vector<std::unique_ptr<ExpressionNode>> arguments;
 };
 

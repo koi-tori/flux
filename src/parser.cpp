@@ -39,8 +39,6 @@ ModifierType modifierFromName(const std::string& value) {
   if (value == "passive") return ModifierType::PASSIVE;
   if (value == "active") return ModifierType::ACTIVE;
   if (value == "immediate") return ModifierType::IMMEDIATE;
-  if (value == "mutable") return ModifierType::MUTABLE;
-  if (value == "immutable") return ModifierType::IMMUTABLE;
   if (value == "char") return ModifierType::CHAR;
   if (value == "short") return ModifierType::SHORT;
   if (value == "int") return ModifierType::INT;
@@ -512,13 +510,22 @@ class ParserImpl {
 
   std::unique_ptr<ExpressionNode> parsePostfix() {
     auto expression = parsePrimary();
-    while (matchSymbol("(")) {
-      auto call = std::make_unique<CallExpressionNode>();
-      auto* identifier = dynamic_cast<IdentifierExpressionNode*>(expression.get());
-      if (identifier == nullptr) {
-        fail("only named functions can be called");
+    while (true) {
+      if (matchSymbol(".")) {
+        auto member = std::make_unique<MemberAccessExpressionNode>();
+        member->object = std::move(expression);
+        member->member_name = expectIdentifier().getValue();
+        expression = std::move(member);
+        continue;
       }
-      call->function_name = identifier->name;
+
+      if (!matchSymbol("(")) break;
+      auto call = std::make_unique<CallExpressionNode>();
+      if (const auto* identifier =
+              dynamic_cast<const IdentifierExpressionNode*>(expression.get())) {
+        call->function_name = identifier->name;
+      }
+      call->callee = std::move(expression);
       if (!isSymbol(")")) {
         do {
           call->arguments.push_back(parseExpression());
@@ -571,6 +578,27 @@ class ParserImpl {
         }
         field.value = parseExpression();
         fields.push_back(std::move(field));
+
+        if (isKeyword("for")) {
+          if (hasNamedFields || fields.size() != 1) {
+            fail("a list comprehension must start with one expression",
+                 ParserErrorType::InvalidSyntax);
+          }
+          advance();
+          auto comprehension =
+              std::make_unique<ListComprehensionExpressionNode>();
+          comprehension->element = std::move(fields.front().value);
+          const Token& variable = expectIdentifier();
+          comprehension->iterator_variable =
+              std::make_unique<IdentifierExpressionNode>();
+          comprehension->iterator_variable->name = variable.getValue();
+          if (!matchKeyword("in")) {
+            fail("expected 'in' in list comprehension");
+          }
+          comprehension->iterable = parseExpression();
+          expectSymbol("]");
+          return comprehension;
+        }
       } while (matchSymbol(",") && !isSymbol("]"));
     }
     expectSymbol("]");

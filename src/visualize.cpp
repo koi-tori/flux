@@ -24,8 +24,6 @@ std::string modifierName(ModifierType modifier) {
     case ModifierType::PASSIVE: return "passive";
     case ModifierType::ACTIVE: return "active";
     case ModifierType::IMMEDIATE: return "immediate";
-    case ModifierType::MUTABLE: return "mutable";
-    case ModifierType::IMMUTABLE: return "immutable";
     case ModifierType::CHAR: return "char";
     case ModifierType::SHORT: return "short";
     case ModifierType::INT: return "int";
@@ -191,11 +189,35 @@ void printNode(const ASTNode* node, std::ostream& output, std::size_t depth,
   }
 
   if (const auto* call = dynamic_cast<const CallExpressionNode*>(node)) {
-    printLine(output, depth, label + ": Call " + call->function_name);
+    printLine(output, depth,
+              label + ": Call" +
+                  (call->function_name.empty() ? "" : " " + call->function_name));
+    if (call->callee &&
+        dynamic_cast<const IdentifierExpressionNode*>(call->callee.get()) ==
+            nullptr) {
+      printNode(call->callee.get(), output, depth + 1, "Callee");
+    }
     for (std::size_t i = 0; i < call->arguments.size(); ++i) {
       printNode(call->arguments[i].get(), output, depth + 1,
                 "Argument " + std::to_string(i + 1));
     }
+    return;
+  }
+
+  if (const auto* member =
+          dynamic_cast<const MemberAccessExpressionNode*>(node)) {
+    printLine(output, depth, label + ": MemberAccess " + member->member_name);
+    printNode(member->object.get(), output, depth + 1, "Object");
+    return;
+  }
+
+  if (const auto* comprehension =
+          dynamic_cast<const ListComprehensionExpressionNode*>(node)) {
+    printLine(output, depth, label + ": ListComprehension");
+    printNode(comprehension->element.get(), output, depth + 1, "Element");
+    printLine(output, depth + 1,
+              "Iterator: " + comprehension->iterator_variable->name);
+    printNode(comprehension->iterable.get(), output, depth + 1, "Iterable");
     return;
   }
 

@@ -24,6 +24,7 @@ def active passive add(int a, int b):
     return result
 
 let answer = add(1, 2)
+let str = " ".join([i for i in range(5)])
 
 typedef MyStruct(int _x) = [
     int x = _x,

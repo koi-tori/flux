@@ -1,9 +1,10 @@
 def active data_manager():
     var x = malloc_int(0)
+    defer:
+        del x
     print("Work begins.")
     yield
     print("Work ends.")
-    del x
 
 def __main__():
     let dm = data_manager()
