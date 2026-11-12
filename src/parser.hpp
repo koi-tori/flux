@@ -3,7 +3,7 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <set>
+#include <unordered_set>
 
 namespace flux::Parser {
 
@@ -50,14 +50,14 @@ class Token {
   int _column;
 };
 
-static const std::set<std::string> keywords = {
+static const std::unordered_set<std::string> keywords = {
     "def", "let", "var", "typedef", "import", "as",
     "if", "else", "elif", "while", "for", "in", "match", "case", "default", "break", "continue", "return",
     "defer", "immediate", "accept", "yield", "resume",
     "char", "short", "int", "long", "float", "double", "bool", "string",
     "passive", "active", "transient", "inline",
     "true", "false", "print", "pass",
-    "nonlocal", "self", "fetch",
+    "nonlocal", "self", "fetch", "requiring", "template", "virtual",
     "try", "catch", "finally", "throw",
 };
 
@@ -287,7 +287,7 @@ class FunctionDefinitionNode : public StatementNode {
   FunctionDefinitionNode() { type = FunctionDefinition; }
   virtual ~FunctionDefinitionNode() = default;
   std::string name;
-  std::set<ModifierType> function_modifiers;
+  std::unordered_set<ModifierType> function_modifiers;
   std::vector<std::unique_ptr<TypeModifierNode>> parameter_types;
   std::vector<std::string> parameter_names;
   std::unique_ptr<StatementListNode> body;
@@ -301,7 +301,7 @@ class VariableDeclarationNode : public StatementNode {
   std::string declared_type_name;
   bool is_mutable = false;
   bool is_structure = false;
-  std::set<ModifierType> variable_modifiers;
+  std::unordered_set<ModifierType> variable_modifiers;
   std::unique_ptr<ExpressionNode> initializer;
 };
 
@@ -318,7 +318,7 @@ class TypeDefinationNode : public StatementNode {
     std::unique_ptr<ExpressionNode> default_value;
   };
   std::vector<Field> fields;
-  std::set<ModifierType> type_modifiers;
+  std::unordered_set<ModifierType> type_modifiers;
   std::unique_ptr<TypeModifierNode> type_definition;
 };
 

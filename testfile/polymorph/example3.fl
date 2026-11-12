@@ -1,0 +1,29 @@
+def inline move():
+    requiring string animal
+    requiring string name
+    print("The {animal} {name} moves.")
+
+# A different way without using inline codes.
+#
+# def move():
+#   fetch @nonlocal string animal
+#   fetch @nonlocal string name
+#   print(The {animal} {name} moves.")
+#
+# This will deliver the function additional pointers as a parameter.
+
+def passive Dog(string _name):
+    let name = _name
+    let animal = "dog"
+
+def passive Cat(string _name):
+    let name = _name
+    let animal = "cat"
+
+def __main__():
+    let puppy = Dog("Dodo")
+    puppy.draw:
+        move()
+    let kitty = Cat("Kitty")
+    kitty.draw:
+        move()

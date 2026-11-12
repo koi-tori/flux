@@ -1,0 +1,19 @@
+def passive Dog(string _name):
+    let name = _name
+    def move():
+        print(f"The dog {name} moves.")
+
+def passive Cat(string _name):
+    let name = _name
+    def move():
+        print("The cat {name} moves.")
+
+def template move(T animal):
+    fetch (T animal).move()
+    animal.move()
+
+def __main__():
+    let puppy = Dog("Dodo")
+    move(puppy)
+    let kitty = Cat("Kitty")
+    move(kitty)

@@ -1,0 +1,20 @@
+def passive Dog(string _name):
+    let name = _name
+
+def passive Cat(string _name):
+    let name = _name
+
+def virtual (T animal).move():
+    pass
+
+def (Dog dog).move():
+    print(f"The dog {name} moves.")
+
+def (Cat cat).move():
+    print(f"The cat {name} moves.")
+
+def __main__():
+    let puppy = Dog("Dodo")
+    puppy.move()
+    let kitty = Cat("Kitty")
+    kitty.move()
